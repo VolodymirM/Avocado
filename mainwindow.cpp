@@ -19,11 +19,12 @@ MainWindow::~MainWindow()
 void MainWindow::on_pushImport_pr_clicked()
 {
     QString filename = QFileDialog::getOpenFileName(this,
-        tr("Imporing a product table"), "C://", "Excel file (*.xlsx)");
+        tr("Imporing a product table"), "C://", "All files (*.*);;Excel file (*.xls);;Excel file (*.xlsx)");
+
 }
 
 void MainWindow::on_pushImport_cl_clicked()
 {
     QString filename = QFileDialog::getOpenFileName(this,
-        tr("Imporing a clients table"), "C://", "Excel file (*.xlsx)");
+        tr("Imporing a clients table"), "C://", "All files (*.*);;Excel file (*.xls);;Excel file (*.xlsx)");
 }
