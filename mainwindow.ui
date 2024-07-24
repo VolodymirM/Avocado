@@ -29,7 +29,7 @@
      </widget>
     </item>
     <item row="1" column="2">
-     <widget class="QTableView" name="tableClients">
+     <widget class="QTableView" name="tableCustomers">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -65,7 +65,7 @@
      </spacer>
     </item>
     <item row="2" column="2">
-     <widget class="QPushButton" name="pushImport_cl">
+     <widget class="QPushButton" name="pushImport_cs">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
         <horstretch>0</horstretch>
@@ -73,7 +73,7 @@
        </sizepolicy>
       </property>
       <property name="text">
-       <string>Import a clients table (.xlsx)</string>
+       <string>Import a customers table (.xlsx)</string>
       </property>
      </widget>
     </item>
@@ -122,7 +122,7 @@
        </sizepolicy>
       </property>
       <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Your clients table:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Your customers table:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
     </item>

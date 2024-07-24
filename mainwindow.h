@@ -20,7 +20,7 @@ public:
 private slots:
     void on_pushImport_pr_clicked();
 
-    void on_pushImport_cl_clicked();
+    void on_pushImport_cs_clicked();
 
 private:
     Ui::MainWindow *ui;
