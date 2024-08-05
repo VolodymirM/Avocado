@@ -27,24 +27,26 @@ struct Product
     }
 };
 
-struct Customer
+struct Client
 {
     QString name;
-    std::vector<int> product_quantity;
-    Customer(QVariant new_name) {name = new_name.toString();}
+    std::vector<QString> product_quantity;
+    Client(QVariant new_name) {name = new_name.toString();}
 };
 
 QString pr_filename;
 std::vector<Product> products;
-std::vector<Customer> customers;
+std::vector<Client> clients;
+std::vector<QString> palletes;
 bool pr_imported = false, cl_imported = false, distributed = false;
-
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->tableProducts->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableCustomers->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
 MainWindow::~MainWindow()
@@ -87,6 +89,7 @@ void MainWindow::on_pushImport_pr_clicked()
         test_empty = nullptr;
         return;
     }
+
     qDebug() << "Successfully opened and checked the Excel file.";
     test_suitable = nullptr;
     test_used = nullptr;
@@ -94,6 +97,8 @@ void MainWindow::on_pushImport_pr_clicked()
 
     if (pr_imported)
         products.clear();
+
+    pr_imported = true;
 
     unsigned count = 2;
     while (xlsx.cellAt(count, 4) != nullptr) {
@@ -117,29 +122,32 @@ void MainWindow::on_pushImport_pr_clicked()
     ui->tableProducts->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     ui->tableProducts->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-    pr_imported = true;
     return;
 }
-
 
 void MainWindow::on_pushImport_cs_clicked()
 {
     QString cs_filename = QFileDialog::getOpenFileName(this,
         tr("Importing a customer table"), "C://", "Excel file (*.xlsx)");
+
     if (cs_filename.isEmpty()) {
         qDebug() << "No file selected";
         return;
     }
+
     QXlsx::Document xlsx(cs_filename);
+
     if (!xlsx.load()) {
         QMessageBox::critical(this, "Error", "Failed to load the Excel file.");
         qDebug() << "Failed to load the Excel file.";
         return;
     }
+
     QXlsx::Cell* test_suitable = xlsx.cellAt(1, 7); // Cell G1
     QXlsx::Cell* test_empty = xlsx.cellAt(1, 2); // Cell A1
     bool isSuitableValid = !(test_suitable && test_suitable->readValue().isValid());
     bool isEmptyValid = !(test_empty && test_empty->readValue().isValid());
+
     if (isSuitableValid || isEmptyValid) {
         QMessageBox::critical(this, "Unable to import the table",
             "WARNING: It seems like you are trying to use unsuitable table, or your table is empty. "
@@ -150,9 +158,59 @@ void MainWindow::on_pushImport_cs_clicked()
         return;
     }
     qDebug() << "Successfully opened and checked the Excel file.";
+
     test_suitable = nullptr;
     test_empty = nullptr;
 
-    // Continue here
+    if (cl_imported) {
+        clients.clear();
+        palletes.clear();
+    }
+
+    cl_imported = true;
+
+    unsigned count = 2;
+    while (xlsx.cellAt(count, 1) != nullptr) {
+        palletes.push_back(xlsx.cellAt(count, 1)->readValue().toString());
+        qDebug() << palletes.back();
+        ++count;
+    }
+
+    count = 2;
+    while (xlsx.cellAt(1, count) != nullptr) {
+        clients.push_back(Client(xlsx.cellAt(1, count)->readValue()));
+        qDebug() << clients.back().name;
+        for (size_t i = 2; i < palletes.size() + 2; ++i) {
+            if (xlsx.cellAt(i, count) == nullptr)
+                clients[count - 2].product_quantity.push_back("");
+            else
+                clients[count - 2].product_quantity.push_back(xlsx.cellAt(i, count)->readValue().toString());
+        }
+        ++count;
+    }
+
+    ui->tableCustomers->setColumnCount(clients.size());
+    ui->tableCustomers->setRowCount(palletes.size());
+
+    QString header;
+    for (size_t i = 0; i < clients.size(); ++i)
+        header += clients[i].name + ";";
+    ui->tableCustomers->setHorizontalHeaderLabels(header.split(";"));
+
+    header = "";
+    for (size_t i = 0; i < palletes.size(); ++i)
+        header += palletes[i] + ";";
+    ui->tableCustomers->setVerticalHeaderLabels(header.split(";"));
+
+    for (count = 0; count < clients.size(); ++count) {
+        for (size_t i = 0; i < palletes.size(); ++i)
+            ui->tableCustomers->setItem(i, count, new QTableWidgetItem(clients[count].product_quantity[i]));
+    }
+
+    ui->tableCustomers->resizeColumnsToContents();
+    ui->tableCustomers->resizeRowsToContents();
+    ui->tableCustomers->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    ui->tableCustomers->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+
     return;
 }
