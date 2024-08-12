@@ -14,16 +14,47 @@
 #include "xlsxrichstring.h"
 #include "xlsxworkbook.h"
 
+std::vector<QString> container_names;
+std::vector<QString> product_names;
+
 struct Product
 {
-    QString container;
+    unsigned line;
+    size_t container_index;
     QString pallet;
-    QString name;
+    size_t name_index;
     QString customer;
-    Product(QVariant new_container, QVariant new_pallet, QVariant new_name) {
-        container = new_container.toString();
+    Product(unsigned new_line, QVariant new_container, QVariant new_pallet, QVariant new_name) {
+        line = new_line;
+
+        bool is_new = true;
+
+        for (size_t i = 0; i < container_names.size(); ++i) {
+            if (container_names[i] == new_container.toString()) {
+                is_new = false;
+                container_index = i;
+                break;
+            }
+        }
+        if (is_new) {
+            container_names.push_back(new_container.toString());
+            container_index = container_names.size() - 1;
+        }
+
         pallet = new_pallet.toString();
-        name = new_name.toString();
+
+        is_new = true;
+        for (size_t i = 0; i < product_names.size(); ++i) {
+            if (product_names[i] == new_name.toString()) {
+                is_new = false;
+                name_index = i;
+                break;
+            }
+        }
+        if (is_new) {
+            product_names.push_back(new_name.toString());
+            name_index = product_names.size() - 1;
+        }
     }
 };
 
@@ -34,11 +65,13 @@ struct Client
     Client(QVariant new_name) {name = new_name.toString();}
 };
 
+bool pr_imported = false, cl_imported = false, distributed = false;
+
 QString pr_filename;
 std::vector<Product> products;
+
 std::vector<Client> clients;
 std::vector<QString> palletes;
-bool pr_imported = false, cl_imported = false, distributed = false;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -64,6 +97,7 @@ void MainWindow::on_pushImport_pr_clicked()
         return;
 
     }
+
     QXlsx::Document xlsx(pr_filename);
     if (!xlsx.load()) {
         QMessageBox::critical(this, "Error", "Failed to load the Excel file.");
@@ -95,15 +129,19 @@ void MainWindow::on_pushImport_pr_clicked()
     test_used = nullptr;
     test_empty = nullptr;
 
-    if (pr_imported)
+    if (pr_imported) {
         products.clear();
+        container_names.clear();
+        product_names.clear();
+    }
 
     pr_imported = true;
+    distributed = false;
 
     unsigned count = 2;
     while (xlsx.cellAt(count, 4) != nullptr) {
-        products.push_back(Product(xlsx.cellAt(count, 3)->readValue(), xlsx.cellAt(count, 4)->readValue(), xlsx.cellAt(count, 5)->readValue()));
-        qDebug() << products[count - 2].container << " " << products[count - 2].pallet << " " << products[count - 2].name;
+        products.push_back(Product(count - 1, xlsx.cellAt(count, 3)->readValue(), xlsx.cellAt(count, 4)->readValue(), xlsx.cellAt(count, 5)->readValue()));
+        qDebug() << products.back().line << " " << container_names[products.back().container_index] << " " << products.back().pallet << " " << product_names[products.back().name_index];
         ++count;
     }
 
@@ -111,10 +149,10 @@ void MainWindow::on_pushImport_pr_clicked()
     ui->tableProducts->setRowCount(products.size());
     ui->tableProducts->setHorizontalHeaderLabels(QString("EX-FILE - CONTAINER;PALLET #;Produce;Customer").split(";"));
 
-    for (count = 0; count < products.size(); ++count) {
-        ui->tableProducts->setItem(count, 0, new QTableWidgetItem(products[count].container));
-        ui->tableProducts->setItem(count, 1, new QTableWidgetItem(products[count].pallet));
-        ui->tableProducts->setItem(count, 2, new QTableWidgetItem(products[count].name));
+    for (size_t i = 0; i < products.size(); ++i) {
+        ui->tableProducts->setItem(i, 0, new QTableWidgetItem(container_names[products[i].container_index]));
+        ui->tableProducts->setItem(i, 1, new QTableWidgetItem(products[i].pallet));
+        ui->tableProducts->setItem(i, 2, new QTableWidgetItem(product_names[products[i].name_index]));
     }
 
     ui->tableProducts->resizeColumnsToContents();
