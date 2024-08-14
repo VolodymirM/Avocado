@@ -18,9 +18,9 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_pushImport_pr_clicked();
-
-    void on_pushImport_cs_clicked();
+    void importProductData();
+    void importCustomerData();
+    void distributeProducts();
 
 private:
     Ui::MainWindow *ui;
