@@ -3,7 +3,6 @@
 
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QDebug>
 #include <QTableWidget>
 #include <vector>
 #include <unordered_map>
