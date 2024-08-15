@@ -302,14 +302,19 @@ void MainWindow::distributeProducts()
     std::vector<Product> products_copy = products;
     std::vector<Client> clients_copy = clients;
 
-
     newOrder_Products(products_copy);
     mergeSort_clientsByProducts(clients_copy, 0, clients_copy.size() - 1);
+
+    bool not_enough_products = false;
 
     for (Client& client : clients_copy) {
         for (to_export& element : client.product_quantity) {
             auto it = products_copy.begin();
-            while (it != products_copy.end()) {
+            while (it <= products_copy.end()) {
+                if (it == products_copy.end()) {
+                    not_enough_products = true;
+                    break;
+                }
                 if (palletes[element.index] == product_names[it->name_index] && it->distributed == false) {
                     ui->tableProducts->setItem(it->line - 1, 3, new QTableWidgetItem(client.name));
                     it->distributed = true;
@@ -324,6 +329,9 @@ void MainWindow::distributeProducts()
         }
     }
 
+    if (not_enough_products)
+        QMessageBox::warning(this, "Not enough products", "There are some customers that may get not all the products they request.");
+
     ui->tableCustomers->resizeColumnsToContents();
     ui->tableCustomers->resizeRowsToContents();
     ui->tableCustomers->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
@@ -331,6 +339,8 @@ void MainWindow::distributeProducts()
 
     distributed = true;
     qDebug() << "Distributed";
+
+    return;
 }
 
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right) {
@@ -407,6 +417,7 @@ int partition(std::vector<Product_toSort>& arr, size_t low, size_t high) {
             swap(arr, i, j);
         }
     }
+
     swap(arr, i + 1, high);
     return i + 1;
 }
@@ -414,12 +425,10 @@ int partition(std::vector<Product_toSort>& arr, size_t low, size_t high) {
 void quickSort(std::vector<Product_toSort>& arr, size_t low, size_t high) {
     if (low < high) {
         int pivotIndex = partition(arr, low, high);
-
         quickSort(arr, low, pivotIndex - 1);
         quickSort(arr, pivotIndex + 1, high);
     }
 }
-
 
 void newOrder_Products(std::vector<Product>& products) {
     std::unordered_map<size_t, std::vector<Product>> containers_groups;
@@ -445,7 +454,5 @@ void newOrder_Products(std::vector<Product>& products) {
             products[i] = element;
             ++i;
         }
-
     }
-
 }
