@@ -9,10 +9,6 @@
 #include <unordered_map>
 
 #include "xlsxdocument.h"
-#include "xlsxchartsheet.h"
-#include "xlsxcellrange.h"
-#include "xlsxchart.h"
-#include "xlsxrichstring.h"
 #include "xlsxworkbook.h"
 
 std::vector<QString> container_names;
@@ -84,9 +80,9 @@ struct Client
     Client() : name("") {}
 };
 
-bool pr_imported = false, cl_imported = false, distributed = false;
+bool pr_imported = false, cl_imported = false, distributed = false, saved = false;
 
-QString pr_filename;
+QString pr_filename = "";
 std::vector<Product> products;
 
 std::vector<Client> clients;
@@ -102,6 +98,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    connect(ui->actionSave, &QAction::triggered, this, &MainWindow::actionSave);
     connect(ui->importProductData, &QPushButton::clicked, this, &MainWindow::importProductData);
     connect(ui->importCustomerData, &QPushButton::clicked, this, &MainWindow::importCustomerData);
     connect(ui->distributeProducts, &QPushButton::clicked, this, &MainWindow::distributeProducts);
@@ -117,25 +114,21 @@ MainWindow::~MainWindow()
 
 void MainWindow::importProductData()
 {
-    pr_filename = QFileDialog::getOpenFileName(this,
+    QString new_pr_filename = QFileDialog::getOpenFileName(this,
         tr("Importing a product table"), "C://", "Excel file (*.xlsx)");
 
-    if (pr_filename.isEmpty()) {
-        qDebug() << "No file selected";
+    if (new_pr_filename.isEmpty())
         return;
 
-    }
-
-    QXlsx::Document xlsx(pr_filename);
+    QXlsx::Document xlsx(new_pr_filename);
     if (!xlsx.load()) {
         QMessageBox::critical(this, "Error", "Failed to load the Excel file.");
-        qDebug() << "Failed to load the Excel file.";
         return;
     }
 
     QXlsx::Cell* test_suitable = xlsx.cellAt(1, 7); // Cell G2
     QXlsx::Cell* test_used = xlsx.cellAt(2, 6); // Cell F2
-    QXlsx::Cell* test_empty = xlsx.cellAt(1, 1); // Cell A1
+    QXlsx::Cell* test_empty = xlsx.cellAt(1, 2); // Cell B1
 
     bool isSuitableValid = test_suitable && test_suitable->readValue().isValid();
     bool isUsedValid = test_used && test_used->readValue().isValid();
@@ -145,14 +138,15 @@ void MainWindow::importProductData()
         QMessageBox::critical(this, "Unable to import the table",
             "WARNING: It seems like you are trying to use unsuitable table, or your table was already used. "
             "Please, check if you are importing a table with your products, the table is not empty, it has no records below the \"F2\" cell.");
-        qDebug() << "Unsuitable table";
         test_suitable = nullptr;
         test_used = nullptr;
         test_empty = nullptr;
         return;
     }
 
-    qDebug() << "Successfully opened and checked the Excel file.";
+    pr_filename = new_pr_filename;
+    new_pr_filename = "";
+
     test_suitable = nullptr;
     test_used = nullptr;
     test_empty = nullptr;
@@ -165,12 +159,11 @@ void MainWindow::importProductData()
 
     pr_imported = true;
     distributed = false;
+    saved = false;
 
     unsigned count = 2;
     while (xlsx.cellAt(count, 4) != nullptr) {
         products.push_back(Product(count - 1, xlsx.cellAt(count, 3)->readValue(), xlsx.cellAt(count, 4)->readValue(), xlsx.cellAt(count, 5)->readValue()));
-        qDebug() << products.back().line << " " << container_names[products.back().container_index] << " " <<
-            products.back().pallet << " " << product_names[products.back().name_index];
         ++count;
     }
 
@@ -197,16 +190,13 @@ void MainWindow::importCustomerData()
     QString cs_filename = QFileDialog::getOpenFileName(this,
         tr("Importing a customer table"), "C://", "Excel file (*.xlsx)");
 
-    if (cs_filename.isEmpty()) {
-        qDebug() << "No file selected";
+    if (cs_filename.isEmpty())
         return;
-    }
 
     QXlsx::Document xlsx(cs_filename);
 
     if (!xlsx.load()) {
         QMessageBox::critical(this, "Error", "Failed to load the Excel file.");
-        qDebug() << "Failed to load the Excel file.";
         return;
     }
 
@@ -219,12 +209,10 @@ void MainWindow::importCustomerData()
         QMessageBox::critical(this, "Unable to import the table",
             "WARNING: It seems like you are trying to use unsuitable table, or your table is empty. "
             "Please, check if you are importing a table with your customers, and the table is not empty.");
-        qDebug() << "Unsuitable table";
         test_empty1 = nullptr;
         test_empty2 = nullptr;
         return;
     }
-    qDebug() << "Successfully opened and checked the Excel file.";
 
     test_empty1 = nullptr;
     test_empty2 = nullptr;
@@ -233,7 +221,9 @@ void MainWindow::importCustomerData()
     palletes.clear();
     ui->tableCustomers->clearContents();
     ui->tableCustomers->clear();
+
     cl_imported = true;
+    saved = false;
 
     if (distributed) {
         for (auto& element : products)
@@ -248,14 +238,12 @@ void MainWindow::importCustomerData()
     unsigned count = 2;
     while (xlsx.cellAt(count, 1) != nullptr) {
         palletes.push_back(xlsx.cellAt(count, 1)->readValue().toString());
-        qDebug() << palletes.back();
         ++count;
     }
 
     count = 2;
     while (xlsx.cellAt(1, count) != nullptr) {
         clients.push_back(Client(xlsx.cellAt(1, count)->readValue()));
-        qDebug() << clients.back().name;
         for (size_t i = 2; i < palletes.size() + 2; ++i) {
             if (xlsx.cellAt(i, count)->readValue().isValid())
                 clients[count - 2].product_quantity.push_back(to_export(i - 2, xlsx.cellAt(i, count)->readValue().toInt()));
@@ -278,10 +266,8 @@ void MainWindow::importCustomerData()
     ui->tableCustomers->setVerticalHeaderLabels(header.split(";"));
 
     for (count = 0; count < clients.size(); ++count) {
-        for (to_export element : clients[count].product_quantity) {
+        for (to_export element : clients[count].product_quantity)
             ui->tableCustomers->setItem(element.index, count, new QTableWidgetItem(QString::number(element.ammount)));
-            qDebug() << element.index << " Ammount: "  << element.ammount;
-        }
     }
 
     ui->tableCustomers->resizeColumnsToContents();
@@ -294,10 +280,8 @@ void MainWindow::importCustomerData()
 
 void MainWindow::distributeProducts()
 {
-    if(!pr_imported || !cl_imported || distributed) {
-        qDebug() << "Distribution failed";
+    if(!pr_imported || !cl_imported || distributed)
         return;
-    }
 
     std::vector<Product> products_copy = products;
     std::vector<Client> clients_copy = clients;
@@ -319,8 +303,6 @@ void MainWindow::distributeProducts()
                     ui->tableProducts->setItem(it->line - 1, 3, new QTableWidgetItem(client.name));
                     it->distributed = true;
                     --(element.ammount);
-                    qDebug() << it->line << " " << container_names[it->container_index] << " " <<
-                        it->pallet << " " << product_names[it->name_index] << " " << ui->tableProducts->item(it->line - 1, 3)->text();
                     if (element.ammount == 0)
                         break;
                 }
@@ -338,9 +320,20 @@ void MainWindow::distributeProducts()
     ui->tableCustomers->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
     distributed = true;
-    qDebug() << "Distributed";
 
     return;
+}
+
+void MainWindow::actionSave() {
+    if (saved)
+        return;
+
+    QXlsx::Document xlsx(pr_filename);
+    for (auto& element : products)
+        xlsx.write(element.line + 1, 6, ui->tableProducts->item(element.line - 1, 3)->text());
+
+    xlsx.save();
+    saved = true;
 }
 
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right) {

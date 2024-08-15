@@ -21,6 +21,7 @@ private slots:
     void importProductData();
     void importCustomerData();
     void distributeProducts();
+    void actionSave();
 
 private:
     Ui::MainWindow *ui;
