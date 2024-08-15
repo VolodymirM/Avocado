@@ -6,6 +6,8 @@
 #include <QDebug>
 #include <QTableWidget>
 #include <vector>
+#include <map>
+#include <unordered_map>
 
 #include "xlsxdocument.h"
 #include "xlsxchartsheet.h"
@@ -23,7 +25,7 @@ struct Product
     size_t container_index;
     QString pallet;
     size_t name_index;
-    QString customer;
+    bool distributed;
     Product(unsigned new_line, QVariant new_container, QVariant new_pallet, QVariant new_name) {
         line = new_line;
 
@@ -56,16 +58,16 @@ struct Product
             name_index = product_names.size() - 1;
         }
 
-        customer = "";
+        distributed = false;
     }
 
-    Product() : line(0), container_index(0), name_index(0), customer("") {}
+    Product() : line(0), container_index(0), pallet(""), name_index(0), distributed(false) {}
 };
 
 struct to_export {
     size_t index;
-    unsigned amount;
-    to_export(size_t new_index, unsigned new_ammount) : index(new_index), amount(new_ammount) {}
+    unsigned ammount;
+    to_export(size_t new_index, unsigned new_ammount) : index(new_index), ammount(new_ammount) {}
 };
 
 struct Client
@@ -84,7 +86,7 @@ std::vector<Product> products;
 std::vector<Client> clients;
 std::vector<QString> palletes;
 
-void merge_productsByContainer(std::vector<std::string>& products, int left, int mid, int right);
+void merge_productsByContainer(std::vector<Product>& products, int left, int mid, int right);
 void mergeSort_productsByContainer(std::vector<Product>& products, int left, int right);
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right);
 void mergeSort_clientsByProducts(std::vector<Client>& clients, int left, int right);
@@ -151,11 +153,11 @@ void MainWindow::importProductData()
     test_used = nullptr;
     test_empty = nullptr;
 
-    if (pr_imported) {
-        products.clear();
-        container_names.clear();
-        product_names.clear();
-    }
+    products.clear();
+    container_names.clear();
+    product_names.clear();
+    ui->tableProducts->clearContents();
+    ui->tableProducts->clear();
 
     pr_imported = true;
     distributed = false;
@@ -223,12 +225,21 @@ void MainWindow::importCustomerData()
     test_empty1 = nullptr;
     test_empty2 = nullptr;
 
-    if (cl_imported) {
-        clients.clear();
-        palletes.clear();
-    }
-
+    clients.clear();
+    palletes.clear();
+    ui->tableCustomers->clearContents();
+    ui->tableCustomers->clear();
     cl_imported = true;
+
+    if (distributed) {
+        for (auto& element : products)
+            element.distributed = false;
+
+        for (size_t i = 0; i < products.size(); ++i)
+            ui->tableProducts->setItem(i, 3, new QTableWidgetItem(""));
+
+        distributed = false;
+    }
 
     unsigned count = 2;
     while (xlsx.cellAt(count, 1) != nullptr) {
@@ -264,8 +275,8 @@ void MainWindow::importCustomerData()
 
     for (count = 0; count < clients.size(); ++count) {
         for (to_export element : clients[count].product_quantity) {
-            ui->tableCustomers->setItem(element.index, count, new QTableWidgetItem(QString::number(element.amount)));
-            qDebug() << element.index << " Ammount: "  << element.amount;
+            ui->tableCustomers->setItem(element.index, count, new QTableWidgetItem(QString::number(element.ammount)));
+            qDebug() << element.index << " Ammount: "  << element.ammount;
         }
     }
 
@@ -284,21 +295,23 @@ void MainWindow::distributeProducts()
         return;
     }
 
-    mergeSort_productsByContainer(products, 0, products.size() - 1);
-    mergeSort_clientsByProducts(clients, 0, clients.size() - 1);
+    std::vector<Product> products_copy = products;
+    std::vector<Client> clients_copy = clients;
 
+    mergeSort_productsByContainer(products_copy, 0, products_copy.size() - 1);
+    mergeSort_clientsByProducts(clients_copy, 0, clients_copy.size() - 1);
 
-    for (Client& client : clients) {
+    for (Client& client : clients_copy) {
         for (to_export& element : client.product_quantity) {
-            auto it = products.begin();
-            while (it != products.end()) {
-                if (palletes[element.index] == product_names[it->name_index] && it->customer == "") {
+            auto it = products_copy.begin();
+            while (it != products_copy.end()) {
+                if (palletes[element.index] == product_names[it->name_index] && it->distributed == false) {
                     ui->tableProducts->setItem(it->line - 1, 3, new QTableWidgetItem(client.name));
-                    it->customer = client.name;
-                    --(element.amount);
+                    it->distributed = true;
+                    --(element.ammount);
                     qDebug() << it->line << " " << container_names[it->container_index] << " " <<
-                        it->pallet << " " << product_names[it->name_index] << " " << it->customer;
-                    if (element.amount == 0)
+                        it->pallet << " " << product_names[it->name_index] << " " << ui->tableProducts->item(it->line - 1, 3)->text();
+                    if (element.ammount == 0)
                         break;
                 }
                 ++it;
@@ -381,12 +394,13 @@ void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, in
     int j = 0;
     int k = left;
     while (i < n1 && j < n2) {
-        unsigned left_ammount = 0, right_ammount = 0;
-
+        unsigned left_ammount = 0;
         for (auto product : L[i].product_quantity)
-            left_ammount += product.amount;
+            left_ammount += product.ammount;
+
+        unsigned right_ammount = 0;
         for (auto product : R[j].product_quantity)
-            right_ammount += product.amount;
+            right_ammount += product.ammount;
 
         if (left_ammount <= right_ammount) {
             clients[k] = L[i];
