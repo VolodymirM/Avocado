@@ -6,7 +6,6 @@
 #include <QDebug>
 #include <QTableWidget>
 #include <vector>
-#include <map>
 #include <unordered_map>
 
 #include "xlsxdocument.h"
@@ -64,6 +63,13 @@ struct Product
     Product() : line(0), container_index(0), pallet(""), name_index(0), distributed(false) {}
 };
 
+struct Product_toSort {
+    size_t container_index;
+    unsigned count;
+    Product_toSort() : container_index(0), count(0) {}
+    Product_toSort(size_t new_index, unsigned new_count) : container_index(new_index), count(new_count) {}
+};
+
 struct to_export {
     size_t index;
     unsigned ammount;
@@ -86,11 +92,9 @@ std::vector<Product> products;
 std::vector<Client> clients;
 std::vector<QString> palletes;
 
-void merge_productsByContainer(std::vector<Product>& products, int left, int mid, int right);
-void mergeSort_productsByContainer(std::vector<Product>& products, int left, int right);
+void newOrder_Products(std::vector<Product>& products);
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right);
 void mergeSort_clientsByProducts(std::vector<Client>& clients, int left, int right);
-
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -298,7 +302,8 @@ void MainWindow::distributeProducts()
     std::vector<Product> products_copy = products;
     std::vector<Client> clients_copy = clients;
 
-    mergeSort_productsByContainer(products_copy, 0, products_copy.size() - 1);
+
+    newOrder_Products(products_copy);
     mergeSort_clientsByProducts(clients_copy, 0, clients_copy.size() - 1);
 
     for (Client& client : clients_copy) {
@@ -326,56 +331,6 @@ void MainWindow::distributeProducts()
 
     distributed = true;
     qDebug() << "Distributed";
-}
-
-void merge_productsByContainer(std::vector<Product>& products, int left, int mid, int right) {
-    int n1 = mid - left + 1;
-    int n2 = right - mid;
-
-    std::vector<Product> L(n1);
-    std::vector<Product> R(n2);
-
-    for (int i = 0; i < n1; ++i)
-        L[i] = products[left + i];
-    for (int j = 0; j < n2; ++j)
-        R[j] = products[mid + 1 + j];
-
-    int i = 0;
-    int j = 0;
-    int k = left;
-    while (i < n1 && j < n2) {
-        if (L[i].container_index <= R[j].container_index) {
-            products[k] = L[i];
-            ++i;
-        } else {
-            products[k] = R[j];
-            ++j;
-        }
-        ++k;
-    }
-
-    while (i < n1) {
-        products[k] = L[i];
-        ++i;
-        ++k;
-    }
-
-    while (j < n2) {
-        products[k] = R[j];
-        ++j;
-        ++k;
-    }
-}
-
-void mergeSort_productsByContainer(std::vector<Product>& products, int left, int right) {
-    if (left < right) {
-        int mid = left + (right - left) / 2;
-
-        mergeSort_productsByContainer(products, left, mid);
-        mergeSort_productsByContainer(products, mid + 1, right);
-
-        merge_productsByContainer(products, left, mid, right);
-    }
 }
 
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right) {
@@ -434,4 +389,63 @@ void mergeSort_clientsByProducts(std::vector<Client>& clients, int left, int rig
 
         merge_clientsByProducts(clients, left, mid, right);
     }
+}
+
+void swap(std::vector<Product_toSort>& arr, size_t i, size_t j) {
+    Product_toSort temp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
+}
+
+int partition(std::vector<Product_toSort>& arr, size_t low, size_t high) {
+    size_t pivot = arr[high].count;
+    size_t i = low - 1;
+
+    for (size_t j = low; j < high; ++j) {
+        if (arr[j].count <= pivot) {
+            ++i;
+            swap(arr, i, j);
+        }
+    }
+    swap(arr, i + 1, high);
+    return i + 1;
+}
+
+void quickSort(std::vector<Product_toSort>& arr, size_t low, size_t high) {
+    if (low < high) {
+        int pivotIndex = partition(arr, low, high);
+
+        quickSort(arr, low, pivotIndex - 1);
+        quickSort(arr, pivotIndex + 1, high);
+    }
+}
+
+
+void newOrder_Products(std::vector<Product>& products) {
+    std::unordered_map<size_t, std::vector<Product>> containers_groups;
+    std::unordered_map<size_t, unsigned> count;
+
+    for (auto& element : products) {
+        containers_groups[element.container_index].push_back(element);
+        ++count[element.container_index];
+    }
+
+    std::vector<Product_toSort> new_order;
+
+    for (auto it = count.begin(); it != count.end(); ++it)
+        new_order.push_back(Product_toSort(it->first, it->second));
+
+    count.clear();
+    quickSort(new_order, 0, new_order.size() - 1);
+
+    size_t i = 0;
+
+    for (auto& container : new_order) {
+        for (auto& element : containers_groups[container.container_index]) {
+            products[i] = element;
+            ++i;
+        }
+
+    }
+
 }
