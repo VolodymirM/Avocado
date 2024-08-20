@@ -17,10 +17,9 @@ struct Product
 {
     unsigned line;
     size_t container_index;
-    QString pallet;
     size_t name_index;
     bool distributed;
-    Product(unsigned new_line, QVariant new_container, QVariant new_pallet, QVariant new_name) {
+    Product(unsigned new_line, QVariant new_container, QVariant new_name) {
         line = new_line;
 
         bool is_new = true;
@@ -36,8 +35,6 @@ struct Product
             container_names.push_back(new_container.toString());
             container_index = container_names.size() - 1;
         }
-
-        pallet = new_pallet.toString();
 
         is_new = true;
         for (size_t i = 0; i < product_names.size(); ++i) {
@@ -55,7 +52,7 @@ struct Product
         distributed = false;
     }
 
-    Product() : line(0), container_index(0), pallet(""), name_index(0), distributed(false) {}
+    Product() : line(0), container_index(0), name_index(0), distributed(false) {}
 };
 
 struct Product_toSort {
@@ -90,6 +87,7 @@ std::vector<QString> palletes;
 void newOrder_Products(std::vector<Product>& products);
 void merge_clientsByProducts(std::vector<Client>& clients, int left, int mid, int right);
 void mergeSort_clientsByProducts(std::vector<Client>& clients, int left, int right);
+bool isEmpty(QXlsx::Document &xlsx);
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -125,30 +123,19 @@ void MainWindow::importProductData()
         return;
     }
 
-    QXlsx::Cell* test_suitable = xlsx.cellAt(1, 7); // Cell G2
-    QXlsx::Cell* test_used = xlsx.cellAt(2, 6); // Cell F2
-    QXlsx::Cell* test_empty = xlsx.cellAt(1, 2); // Cell B1
+    QXlsx::Cell* cellE1 = xlsx.cellAt(1, 5);  // E1 cell
+    QXlsx::Cell* cellF1 = xlsx.cellAt(1, 6);  // F1 cell
 
-    bool isSuitableValid = test_suitable && test_suitable->readValue().isValid();
-    bool isUsedValid = test_used && test_used->readValue().isValid();
-    bool isEmptyValid = !(test_empty && test_empty->readValue().isValid());
+    bool unsuitable = !cellE1 || cellF1;
 
-    if (isUsedValid || isSuitableValid || isEmptyValid) {
+    if (isEmpty(xlsx) || unsuitable) {
         QMessageBox::critical(this, "Unable to import the table",
-            "WARNING: It seems like you are trying to use unsuitable table, or your table was already used. "
-            "Please, check if you are importing a table with your products, the table is not empty, it has no records below the \"F2\" cell.");
-        test_suitable = nullptr;
-        test_used = nullptr;
-        test_empty = nullptr;
+            "WARNING: It seems like you are trying to use unsuitable table. Please, check if you are importing a table with your products.");
         return;
     }
 
     pr_filename = new_pr_filename;
     new_pr_filename = "";
-
-    test_suitable = nullptr;
-    test_used = nullptr;
-    test_empty = nullptr;
 
     products.clear();
     container_names.clear();
@@ -161,19 +148,23 @@ void MainWindow::importProductData()
     saved = false;
 
     unsigned count = 2;
-    while (xlsx.cellAt(count, 4) != nullptr) {
-        products.push_back(Product(count - 1, xlsx.cellAt(count, 3)->readValue(), xlsx.cellAt(count, 4)->readValue(), xlsx.cellAt(count, 5)->readValue()));
+    while (xlsx.cellAt(count, 3) != nullptr) {
+        products.push_back(Product(count - 1, xlsx.cellAt(count, 2)->readValue(), xlsx.cellAt(count, 4)->readValue()));
         ++count;
     }
 
-    ui->tableProducts->setColumnCount(4);
+    ui->tableProducts->setColumnCount(5);
     ui->tableProducts->setRowCount(products.size());
-    ui->tableProducts->setHorizontalHeaderLabels(QString("EX-FILE - CONTAINER;PALLET #;Produce;Customer").split(";"));
+    ui->tableProducts->setHorizontalHeaderLabels(QString("CRT;EX-FILE - CONTAINER;PALLET #;Produce;Customer").split(";"));
 
     for (size_t i = 0; i < products.size(); ++i) {
-        ui->tableProducts->setItem(i, 0, new QTableWidgetItem(container_names[products[i].container_index]));
-        ui->tableProducts->setItem(i, 1, new QTableWidgetItem(products[i].pallet));
-        ui->tableProducts->setItem(i, 2, new QTableWidgetItem(product_names[products[i].name_index]));
+        if (xlsx.cellAt(i + 2, 1) && xlsx.cellAt(i + 2, 1)->readValue().isValid())
+            ui->tableProducts->setItem(i, 0, new QTableWidgetItem(xlsx.cellAt(i + 2, 1)->readValue().toString()));
+        ui->tableProducts->setItem(i, 1, new QTableWidgetItem(container_names[products[i].container_index]));
+        ui->tableProducts->setItem(i, 2, new QTableWidgetItem(xlsx.cellAt(i + 2, 3)->readValue().toString()));
+        ui->tableProducts->setItem(i, 3, new QTableWidgetItem(product_names[products[i].name_index]));
+        if (xlsx.cellAt(i + 2, 5) && xlsx.cellAt(i + 2, 5)->readValue().isValid())
+            ui->tableProducts->setItem(i, 4, new QTableWidgetItem(xlsx.cellAt(i + 2, 5)->readValue().toString()));
     }
 
     ui->tableProducts->resizeColumnsToContents();
@@ -199,22 +190,12 @@ void MainWindow::importCustomerData()
         return;
     }
 
-    QXlsx::Cell* test_empty1 = xlsx.cellAt(2, 1); // Cell B1
-    QXlsx::Cell* test_empty2 = xlsx.cellAt(1, 2); // Cell A2
-    bool isEmpty1Valid = !(test_empty1 && test_empty1->readValue().isValid());
-    bool isEmpty2Valid = !(test_empty2 && test_empty2->readValue().isValid());
-
-    if (isEmpty1Valid || isEmpty2Valid) {
+    if (isEmpty(xlsx)) {
         QMessageBox::critical(this, "Unable to import the table",
-            "WARNING: It seems like you are trying to use unsuitable table, or your table is empty. "
-            "Please, check if you are importing a table with your customers, and the table is not empty.");
-        test_empty1 = nullptr;
-        test_empty2 = nullptr;
+            "WARNING: It seems like you are trying to use an empty table. "
+            "Please, check if the table is not empty.");
         return;
     }
-
-    test_empty1 = nullptr;
-    test_empty2 = nullptr;
 
     clients.clear();
     palletes.clear();
@@ -299,7 +280,7 @@ void MainWindow::distributeProducts()
                     break;
                 }
                 if (palletes[element.index] == product_names[it->name_index] && it->distributed == false) {
-                    ui->tableProducts->setItem(it->line - 1, 3, new QTableWidgetItem(client.name));
+                    ui->tableProducts->setItem(it->line - 1, 4, new QTableWidgetItem(client.name));
                     it->distributed = true;
                     --(element.ammount);
                     if (element.ammount == 0)
@@ -324,12 +305,12 @@ void MainWindow::distributeProducts()
 }
 
 void MainWindow::actionSave() {
-    if (saved)
+    if (saved || !pr_imported)
         return;
 
     QXlsx::Document xlsx(pr_filename);
     for (auto& element : products)
-        xlsx.write(element.line + 1, 6, ui->tableProducts->item(element.line - 1, 3)->text());
+        xlsx.write(element.line + 1, 5, ui->tableProducts->item(element.line - 1, 4)->text());
 
     xlsx.save();
     saved = true;
@@ -447,4 +428,18 @@ void newOrder_Products(std::vector<Product>& products) {
             ++i;
         }
     }
+}
+
+bool isEmpty(QXlsx::Document &xlsx) {
+    int rowCount = xlsx.dimension().rowCount();
+    int colCount = xlsx.dimension().columnCount();
+
+    for (int row = 1; row <= rowCount; ++row)
+        for (int col = 1; col <= colCount; ++col) {
+            QXlsx::Cell* cell = xlsx.cellAt(row, col);
+            if (cell && cell->readValue().isValid() && !cell->readValue().toString().isEmpty())
+                return false;
+        }
+
+    return true;
 }
