@@ -10,6 +10,8 @@
 #include "xlsxdocument.h"
 #include "xlsxworkbook.h"
 
+const int RUN = 32;
+
 std::vector<QString> container_names;
 std::vector<QString> product_names;
 
@@ -309,8 +311,14 @@ void MainWindow::actionSave() {
         return;
 
     QXlsx::Document xlsx(pr_filename);
-    for (auto& element : products)
-        xlsx.write(element.line + 1, 5, ui->tableProducts->item(element.line - 1, 4)->text());
+
+    for (int i = 0; i < ui->tableProducts->rowCount(); ++i) {
+        QTableWidgetItem* item = ui->tableProducts->item(i, 4);
+        if (item)
+            xlsx.write(i + 2, 5, item->text());
+        else
+            xlsx.write(i + 2, 5, "");
+    }
 
     xlsx.save();
     saved = true;
@@ -374,32 +382,67 @@ void mergeSort_clientsByProducts(std::vector<Client>& clients, int left, int rig
     }
 }
 
-void swap(std::vector<Product_toSort>& arr, size_t i, size_t j) {
-    Product_toSort temp = arr[i];
-    arr[i] = arr[j];
-    arr[j] = temp;
+void insertionSort(std::vector<Product_toSort>& arr, int left, int right) {
+    for (int i = left + 1; i <= right; i++) {
+        Product_toSort temp = arr[i];
+        int j = i - 1;
+        while (j >= left && arr[j].count > temp.count) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = temp;
+    }
 }
 
-int partition(std::vector<Product_toSort>& arr, size_t low, size_t high) {
-    size_t pivot = arr[high].count;
-    size_t i = low - 1;
+void merge(std::vector<Product_toSort>& arr, int left, int mid, int right) {
+    int len1 = mid - left + 1, len2 = right - mid;
+    std::vector<Product_toSort> leftArr(len1);
+    std::vector<Product_toSort> rightArr(len2);
 
-    for (size_t j = low; j < high; ++j) {
-        if (arr[j].count <= pivot) {
-            ++i;
-            swap(arr, i, j);
+    for (int i = 0; i < len1; i++)
+        leftArr[i] = arr[left + i];
+    for (int i = 0; i < len2; i++)
+        rightArr[i] = arr[mid + 1 + i];
+
+    int i = 0, j = 0, k = left;
+    while (i < len1 && j < len2) {
+        if (leftArr[i].count <= rightArr[j].count) {
+            arr[k] = leftArr[i];
+            i++;
+        } else {
+            arr[k] = rightArr[j];
+            j++;
         }
+        k++;
     }
 
-    swap(arr, i + 1, high);
-    return i + 1;
+    while (i < len1) {
+        arr[k] = leftArr[i];
+        i++;
+        k++;
+    }
+
+    while (j < len2) {
+        arr[k] = rightArr[j];
+        j++;
+        k++;
+    }
 }
 
-void quickSort(std::vector<Product_toSort>& arr, size_t low, size_t high) {
-    if (low < high) {
-        int pivotIndex = partition(arr, low, high);
-        quickSort(arr, low, pivotIndex - 1);
-        quickSort(arr, pivotIndex + 1, high);
+void timSort(std::vector<Product_toSort>& arr) {
+    int n = arr.size();
+
+    for (int i = 0; i < n; i += RUN)
+        insertionSort(arr, i, std::min((i + RUN - 1), (n - 1)));
+
+    for (int size = RUN; size < n; size = 2 * size) {
+        for (int left = 0; left < n; left += 2 * size) {
+            int mid = left + size - 1;
+            int right = std::min((left + 2 * size - 1), (n - 1));
+
+            if (mid < right)
+                merge(arr, left, mid, right);
+        }
     }
 }
 
@@ -418,7 +461,7 @@ void newOrder_Products(std::vector<Product>& products) {
         new_order.push_back(Product_toSort(it->first, it->second));
 
     count.clear();
-    quickSort(new_order, 0, new_order.size() - 1);
+    timSort(new_order);
 
     size_t i = 0;
 
